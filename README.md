@@ -20,7 +20,7 @@ It answers two trial questions for scanned/digital KYC + loan PDFs:
 ```
 PDF ─► render.py      text layer present? use it : render page image (pypdfium2, --dpi)
     ─► preprocess.py  grayscale ► deskew ► denoise ► adaptive threshold (OpenCV)
-    ─► ocr.py         RapidOCR 3.x PP-OCRv5 (ONNX, CPU; `ocr.engine` selects rapidocr_v5|rapidocr_v6|rapidocr_v4|tesseract|onnxtr) ► words + bbox + confidence, cached as JSON
+    ─► ocr.py         RapidOCR 3.x PP-OCRv5 (ONNX, CPU; `ocr.engine` selects rapidocr_v5|paddleocr_v5|rapidocr_v6|rapidocr_v4|tesseract|onnxtr) ► words + bbox + confidence, cached as JSON
     ─► classify.py    rule score: credit/debit/balance header, date & amount density, column alignment
                       ► bank_statement / application_form / other  (+ optional TF-IDF+LogReg)
     ─► statements.py  group statement pages ► header row ► column boundaries ► rows
@@ -47,9 +47,13 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1          # if blocked: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 python -m pip install --upgrade pip
 pip install -r requirements.txt
+# optional: PaddleOCR fallback engine (heavier; see "OCR engines" below)
+# python -m pip install -r requirements-paddle.txt
 # optional, for tests / synthetic data:
 pip install -r requirements-dev.txt
 python -m pytest -q tests
+# one-time OCR model download while online (before taking the laptop offline):
+python -m kyctrial.ocr rapidocr_v5
 ```
 
 Installing needs internet once (pip). After that nothing goes online. If the client laptop is
@@ -67,7 +71,7 @@ python -m kyctrial run --input data --output outputs --dpi 300 --config local.ya
 
 Flags: `--dpi` (render DPI for scanned pages, default 250), `--max-pages N`, `--debug`
 (saves each preprocessing step as PNG), `--config` (YAML overrides, see `config.example.yaml`),
-`--model` (optional trained page classifier).
+`--engine` (OCR engine override: `rapidocr_v5`, `paddleocr_v5`, …), `--model` (optional trained page classifier).
 
 Reruns are fast: OCR is cached in `outputs/_ocr_cache/` per page + DPI + preprocessing settings.
 Delete that folder after the trial (it contains client text).
@@ -121,5 +125,120 @@ from Faker; `expected.json` holds the ground truth. Results on this box are in `
 Docs: [`docs/QUESTIONS_FOR_CLIENT.md`](docs/QUESTIONS_FOR_CLIENT.md), [`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md), [`docs/TRIAL_RESULTS.md`](docs/TRIAL_RESULTS.md).
 
 
-## OCR engine choice
-See `bench/OCR_RESEARCH.md` for the survey and benchmark of 9 open-source OCR configurations. Default is `ocr.engine: rapidocr_v5` with deskew-only preprocessing. First run downloads the ONNX models once: run `python -m kyctrial.ocr` while online, before taking the laptop offline.
+## OCR engines: RapidOCR (default) and PaddleOCR
+
+Full survey + numbers: [`bench/OCR_RESEARCH.md`](bench/OCR_RESEARCH.md). Default preprocessing is **deskew only** (`preprocess.threshold: false`).
+
+| Engine (`ocr.engine`) | Install | s/page (bench) | Peak RAM | Amount recall | Reconcile A+B | Notes |
+|---|---|---|---|---|---|---|
+| **`rapidocr_v5`** (default) | `requirements.txt` | **1.8** | **0.7 GB** | 0.99 | **0.99** | PP-OCRv5 mobile via ONNX. Recommended. |
+| **`paddleocr_v5`** | `requirements-paddle.txt` (optional) | 4.3 | 2.4 GB | **1.00** | 0.99 | Same model family, native Paddle. Heavier; use as fallback / cross-check. |
+| `rapidocr_v6` | `requirements.txt` | 0.6–2.1 | ~0.6 GB | ~0.95 | ~0.92–0.95 | Faster tiny/small; slightly less accurate. |
+| `rapidocr_v4` | `requirements.txt` | 3.0 | 1.9 GB | 0.83 | 0.74 | Old kit engine; models bundled (no download). |
+| `onnxtr` / `tesseract` | extra packages | – | – | lower | lower | See research doc; not recommended as primary. |
+
+Synthetic pages only — confirm the ranking on ~5 real client PDFs (data stays on the laptop).
+
+### RapidOCR (default) — Windows install
+
+Already covered by `pip install -r requirements.txt` above. Needs:
+
+- Python 3.11–3.13 (64-bit)
+- **Microsoft Visual C++ Redistributable (x64)** — ONNX Runtime needs it. If you see `DLL load failed` / `onnxruntime` import errors, install [VC++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) and retry.
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+# one-time model download while ONLINE (writes ONNX files into the venv):
+python -m kyctrial.ocr rapidocr_v5
+```
+
+**Model folder (copy this to go offline):** RapidOCR 3.x stores ONNX weights inside the package:
+
+```
+.venv\Lib\site-packages\rapidocr\models\
+```
+
+Needed files for `rapidocr_v5`: `ch_PP-OCRv5_det_mobile.onnx`, `en_PP-OCRv5_rec_mobile.onnx`, `ch_ppocr_mobile_v2.0_cls_mobile.onnx`.
+Copy that whole `models\` folder into the same path on the offline laptop (after installing `requirements.txt` there with `--no-index` wheels if needed).
+
+### PaddleOCR (optional fallback) — Windows install
+
+Do **not** install this unless you want `ocr.engine: paddleocr_v5`. It pulls `paddlepaddle` (~hundreds of MB) and uses ~2.4 GB RAM at runtime.
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+# paddlepaddle CPU wheel comes from Paddle's index (pinned in the file):
+python -m pip install -r requirements-paddle.txt
+# one-time model download while ONLINE:
+python -m kyctrial.ocr paddleocr_v5
+```
+
+**Python version:** PaddlePaddle 3.0.0 supports Windows x86_64 with **Python 3.8–3.13** (64-bit) and an AVX-capable CPU. Prefer the same 3.11–3.13 range as the rest of the kit.
+
+**Model folder (copy this to go offline):**
+
+```
+%USERPROFILE%\.paddlex\official_models\
+```
+
+For `paddleocr_v5` you need at least `PP-OCRv5_mobile_det\` and `en_PP-OCRv5_mobile_rec\`. Override the cache root with env var `PADDLE_PDX_CACHE_HOME` if you want a portable folder (set the same variable on the offline laptop).
+
+Offline laptop: install wheels from a USB stick (`pip download` on an online Windows machine with the same Python version, including the paddle CPU index), then copy `%USERPROFILE%\.paddlex\official_models\` (or your `PADDLE_PDX_CACHE_HOME`).
+
+### Selecting the engine
+
+**Config** (`local.yaml`, git-ignored):
+
+```yaml
+ocr:
+  engine: paddleocr_v5   # or rapidocr_v5 (default)
+  threads: 4             # try 2 if RAM is tight with PaddleOCR
+```
+
+```powershell
+python -m kyctrial run --input data --output outputs --config local.yaml
+```
+
+**CLI flag** (overrides config for that run):
+
+```powershell
+python -m kyctrial run --input data --output outputs --engine paddleocr_v5
+python -m kyctrial run --input data --output outputs --engine rapidocr_v5
+```
+
+Changing the engine invalidates the OCR cache key, so pages are re-OCRed automatically (cache still lives under `outputs\_ocr_cache\`).
+
+### Smoke test (both engines)
+
+```powershell
+# RapidOCR (default install)
+python -m kyctrial.ocr rapidocr_v5
+# expect: ready: rapidocr_v5
+
+# PaddleOCR (only after requirements-paddle.txt)
+python -m kyctrial.ocr paddleocr_v5
+# expect: ready: paddleocr_v5
+
+# End-to-end on the synthetic fixture (fake data only):
+python -m kyctrial run --input tests\fixtures\synthetic_scanned.pdf --output outputs\smoke --engine rapidocr_v5 --max-pages 3
+```
+
+### Threads / RAM tips
+
+- Default `ocr.threads: 4` matches the benchmark. On a 16 GB laptop leave headroom for Chrome/Excel.
+- RapidOCR ≈ 0.7 GB peak — comfortable. PaddleOCR ≈ 2.4 GB — close other heavy apps; drop `threads` to 2 if Windows starts swapping.
+- Never raise threads above physical cores; it does not help OCR much and raises RAM.
+
+### Common Windows install errors
+
+| Error | Fix |
+|---|---|
+| `DLL load failed` / `ImportError: DLL load failed while importing onnxruntime` | Install [VC++ Redistributable x64](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist), reboot, retry. |
+| `No matching distribution for paddlepaddle` | Use `requirements-paddle.txt` (it sets Paddle's CPU `--extra-index-url`). Confirm 64-bit Python: `python -c "import struct; print(struct.calcsize('P')*8)"` → `64`. |
+| `paddlepaddle` installs but `import paddle` crashes | Need AVX CPU (almost all post-2011 Intel/AMD). Check with CPU-Z → Instructions includes AVX. |
+| Python 3.14+ / 32-bit Python | Unsupported for paddlepaddle 3.0.0. Use 64-bit 3.11–3.13. |
+| `ImportError: ... needs paddleocr + paddlepaddle` when using `--engine paddleocr_v5` | You skipped the optional install: `pip install -r requirements-paddle.txt`. |
+| First OCR run hangs / fails offline | Models were never downloaded. Run `python -m kyctrial.ocr <engine>` once online, or copy the model folders listed above. |
+| `numpy` / `PyYAML` conflict after installing paddle | Stick to the pinned versions in `requirements.txt` + `requirements-paddle.txt`. Recreate the venv if needed. |
+

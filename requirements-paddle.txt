@@ -1,0 +1,17 @@
+# Optional OCR engine: PaddleOCR 3.x with PP-OCRv5 mobile (CPU).
+# Benchmarked on 2026-10-16 (see bench/OCR_RESEARCH.md). NOT required for the default
+# RapidOCR path — install only if you set ocr.engine: paddleocr_v5.
+#
+# Windows (PowerShell, venv active) / Linux:
+#   python -m pip install -r requirements-paddle.txt
+#
+# paddlepaddle is served from Paddle's CPU index (not plain PyPI for the CPU wheel
+# we used). paddleocr + paddlex come from PyPI.
+#
+# Verified: paddlepaddle==3.0.0 + paddleocr==3.7.0 (pulls paddlex~=3.7) on
+# Linux x86_64, Python 3.13. Windows: Python 3.8–3.13 (64-bit), AVX CPU.
+# Needs the Microsoft Visual C++ Redistributable (x64) on Windows.
+
+--extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cpu/
+paddlepaddle==3.0.0
+paddleocr==3.7.0

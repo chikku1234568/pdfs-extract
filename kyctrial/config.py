@@ -16,7 +16,7 @@ DEFAULTS = {
         "max_skew_deg": 10,
     },
     "ocr": {
-        "engine": "rapidocr_v5",   # rapidocr_v5 | rapidocr_v6 | rapidocr_v4 | tesseract | onnxtr (see bench/OCR_RESEARCH.md)
+        "engine": "rapidocr_v5",   # rapidocr_v5 | rapidocr_v6 | rapidocr_v4 | paddleocr_v5 | tesseract | onnxtr (see bench/OCR_RESEARCH.md)
         "threads": 4,
         "min_conf": 0.5,
     },

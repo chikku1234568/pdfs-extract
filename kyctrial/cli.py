@@ -18,6 +18,8 @@ def cmd_run(a):
     cfg = load_config(a.config)
     if a.dpi:
         cfg["dpi"] = a.dpi
+    if getattr(a, "engine", None):
+        cfg.setdefault("ocr", {})["engine"] = a.engine
     from .pipeline import process_pdf
     from .report import write_pdf_outputs, summary_row, write_manual_review_template
     model = None
@@ -63,6 +65,7 @@ def main(argv=None):
     r.add_argument("--max-pages", type=int, help="only first N pages per PDF (quick trials)")
     r.add_argument("--debug", action="store_true", help="save preprocessing step images")
     r.add_argument("--config", help="YAML file overriding config.py defaults")
+    r.add_argument("--engine", help="OCR engine override (rapidocr_v5, paddleocr_v5, ...)")
     r.add_argument("--model", help="optional trained page classifier (.joblib)")
     r.set_defaults(fn=cmd_run)
     t = sub.add_parser("train", help="train TF-IDF+LogReg page classifier from labels CSV (text,label)")

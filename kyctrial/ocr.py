@@ -14,12 +14,13 @@ _ENGINE = None
 _ENGINE_KEY = None
 
 # Engines selectable with config `ocr.engine` (see bench/OCR_RESEARCH.md for the benchmark):
-#   rapidocr_v5   - rapidocr>=3 with PP-OCRv5 mobile det + en rec (ONNX, CPU)  [recommended]
+#   rapidocr_v5   - rapidocr>=3 with PP-OCRv5 mobile det + en rec (ONNX, CPU)  [recommended / default]
 #   rapidocr_v6   - rapidocr>=3 with PP-OCRv6 det/rec (`ocr.model_type`: tiny|small)
 #   rapidocr_v4   - rapidocr_onnxruntime 1.x, PP-OCRv4 bundled in the wheel (original kit engine)
+#   paddleocr_v5  - PaddleOCR 3.x native PP-OCRv5 mobile (CPU); optional, see requirements-paddle.txt
 #   tesseract     - Tesseract 5 via pytesseract (needs tesseract.exe installed)
 #   onnxtr        - docTR models on ONNX Runtime (pip install "onnxtr[cpu]")
-# rapidocr>=3 / onnxtr download model files on first use: run once with internet
+# rapidocr>=3 / paddleocr / onnxtr download model files on first use: run once with internet
 # (or copy the model cache) before moving to the offline laptop.
 
 
@@ -65,6 +66,37 @@ def _make_engine(cfg):
             for t, x, y, w, h, c in zip(d["text"], d["left"], d["top"], d["width"], d["height"], d["conf"]):
                 if t.strip() and float(c) >= 0:
                     out.append(([(x, y), (x + w, y), (x + w, y + h), (x, y + h)], t, float(c) / 100))
+            return out
+        return run
+    if name == "paddleocr_v5":
+        # Lazy import: paddlepaddle / paddleocr are NOT in requirements.txt.
+        # Install with: pip install -r requirements-paddle.txt
+        try:
+            os.environ.setdefault("FLAGS_use_mkldnn", "1")
+            from paddleocr import PaddleOCR
+        except ImportError as e:
+            raise ImportError(
+                "ocr.engine=paddleocr_v5 needs paddleocr + paddlepaddle. "
+                "Install with: pip install -r requirements-paddle.txt"
+            ) from e
+        det = cfg.get("paddle_det", "PP-OCRv5_mobile_det")
+        rec = cfg.get("paddle_rec", "en_PP-OCRv5_mobile_rec")
+        eng = PaddleOCR(
+            text_detection_model_name=det,
+            text_recognition_model_name=rec,
+            use_doc_orientation_classify=False,
+            use_doc_unwarping=False,
+            use_textline_orientation=False,
+            device="cpu",
+            cpu_threads=th,
+        )
+        def run(img):
+            import numpy as np
+            bgr = np.stack([img] * 3, -1) if getattr(img, "ndim", 3) == 2 else img
+            out = []
+            for r in eng.predict(bgr):
+                for poly, t, c in zip(r["rec_polys"], r["rec_texts"], r["rec_scores"]):
+                    out.append((poly, t, float(c)))
             return out
         return run
     if name == "onnxtr":
