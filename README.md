@@ -20,7 +20,7 @@ It answers two trial questions for scanned/digital KYC + loan PDFs:
 ```
 PDF ─► render.py      text layer present? use it : render page image (pypdfium2, --dpi)
     ─► preprocess.py  grayscale ► deskew ► denoise ► adaptive threshold (OpenCV)
-    ─► ocr.py         RapidOCR (ONNX, CPU) ► words + bbox + confidence, cached as JSON
+    ─► ocr.py         RapidOCR 3.x PP-OCRv5 (ONNX, CPU; `ocr.engine` selects rapidocr_v5|rapidocr_v6|rapidocr_v4|tesseract|onnxtr) ► words + bbox + confidence, cached as JSON
     ─► classify.py    rule score: credit/debit/balance header, date & amount density, column alignment
                       ► bank_statement / application_form / other  (+ optional TF-IDF+LogReg)
     ─► statements.py  group statement pages ► header row ► column boundaries ► rows
@@ -110,7 +110,7 @@ from Faker; `expected.json` holds the ground truth. Results on this box are in `
 |---|---|
 | Few words / low `mean_conf` in `pages.csv` | `--dpi 300`; check `--debug` images: is text broken or blobby? |
 | Text too thin / broken after threshold | **decrease** `preprocess.c` (e.g. 8) to keep thin strokes; bigger `block_size` (41–61) for uneven lighting |
-| Dark speckle everywhere | keep `denoise: true`; raise `c`; or set `threshold: false` (RapidOCR also works on grayscale - compare) |
+| Dark speckle everywhere | try `denoise: true`; keep `threshold: false` (binarising hurt RapidOCR badly in bench/OCR_RESEARCH.md) |
 | Page tilted in thumbnail | skew > `max_skew_deg` (10) is ignored; rotated 90°/180° pages are **not** handled yet |
 | Statement page labelled `other` | lower `classify.statement_min_score`; add the bank's header words to `STATEMENT_HEADERS` / `COLUMN_SYNONYMS` |
 | Rows found but `reconcile_rate` low | look at `raw` in `transactions.csv`: digit confusions → extend `normalise_amount_text()`; wrong columns → header names missing from `COLUMN_SYNONYMS` |
@@ -119,3 +119,7 @@ from Faker; `expected.json` holds the ground truth. Results on this box are in `
 | Slow | `--max-pages`, lower DPI to 200, close other apps; OCR is ~1–3 s/page on CPU |
 
 Docs: [`docs/QUESTIONS_FOR_CLIENT.md`](docs/QUESTIONS_FOR_CLIENT.md), [`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md), [`docs/TRIAL_RESULTS.md`](docs/TRIAL_RESULTS.md).
+
+
+## OCR engine choice
+See `bench/OCR_RESEARCH.md` for the survey and benchmark of 9 open-source OCR configurations. Default is `ocr.engine: rapidocr_v5` with deskew-only preprocessing. First run downloads the ONNX models once: run `python -m kyctrial.ocr` while online, before taking the laptop offline.

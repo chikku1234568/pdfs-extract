@@ -17,3 +17,10 @@ What failed and why (scanned file):
 
 Speed (OCR pages, fresh run, no cache): ~1.0–2.6 s/page at 250 DPI on 8 cores; ~2.0–2.9 s/page at 300 DPI pinned to 4 cores.
 Digital (text-layer) pages: ~0.1 s/page. Cached reruns: ~0.1 s/page. A 40-page scanned file ≈ 1–2 min.
+
+
+## Update 2026-10-16: OCR engine + preprocessing change (see bench/OCR_RESEARCH.md)
+Default engine is now RapidOCR 3.x with PP-OCRv5 mobile models (`ocr.engine: rapidocr_v5`), and preprocessing is deskew only (no binarisation, no median filter). Same fixtures, rerun:
+- synthetic_scanned.pdf: pages 3–4 ✓, 6 months ✓, 44/45 rows, reconcile **76.3%** (was 51.5%), all 4 fields exact (co-applicant name now right)
+- synthetic_no_statement.pdf: no statements ✓, all 4 fields exact (app_id was missed before)
+- synthetic_digital.pdf: unchanged, all correct

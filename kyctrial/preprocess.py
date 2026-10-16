@@ -58,7 +58,8 @@ def preprocess(img, cfg, debug_dir=None, tag="page"):
     gray = to_gray(img); steps["1_gray"] = gray
     angle = 0.0
     if p["deskew"]:
-        angle = estimate_skew(gray, p["max_skew_deg"])
+        # estimate on a median-filtered copy: salt & pepper specks otherwise break the line blobs
+        angle = estimate_skew(cv2.medianBlur(gray, 3), p["max_skew_deg"])
         if abs(angle) > 0.1:
             gray = rotate(gray, angle)
         steps["2_deskew"] = gray

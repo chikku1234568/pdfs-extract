@@ -8,14 +8,18 @@ DEFAULTS = {
     "min_text_chars": 80,          # a text layer with fewer chars is treated as "no text layer"
     "preprocess": {
         "deskew": True,
-        "denoise": True,
-        "threshold": True,         # adaptive threshold -> pure black/white
+        "denoise": False,          # median filter; bench showed it hurts neural OCR on clean-ish scans
+        "threshold": False,        # adaptive threshold -> pure B/W. OFF: binarising cut amount recall 0.99->0.74 with RapidOCR (bench/)
         "block_size": 31,          # adaptive threshold window (odd). Bigger = smoother
         "c": 15,                   # adaptive threshold constant. Bigger = lighter output
         "remove_borders": False,
         "max_skew_deg": 10,
     },
-    "ocr": {"min_conf": 0.5},
+    "ocr": {
+        "engine": "rapidocr_v5",   # rapidocr_v5 | rapidocr_v6 | rapidocr_v4 | tesseract | onnxtr (see bench/OCR_RESEARCH.md)
+        "threads": 4,
+        "min_conf": 0.5,
+    },
     "classify": {
         "statement_min_score": 0.45,
         "form_min_score": 0.35,
