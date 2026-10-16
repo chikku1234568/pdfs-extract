@@ -1,0 +1,11 @@
+# Copy to local.yaml (git-ignored) and pass with --config local.yaml
+dpi: 300
+preprocess:
+  block_size: 41
+  c: 12
+  remove_borders: true
+classify:
+  statement_min_score: 0.40
+fields:
+  app_id:
+    labels: ["application id", "application no", "app no", "loan account no"]

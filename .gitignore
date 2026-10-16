@@ -1,0 +1,28 @@
+# ======== NEVER COMMIT CLIENT DATA ========
+data/
+outputs/
+input/
+inputs/
+client*/
+*.pdf
+!tests/fixtures/*.pdf
+*.csv
+!tests/fixtures/*.csv
+*.xlsx
+*.xls
+*.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+*.joblib
+_ocr_cache/
+# local config overrides may contain client label names
+local*.yaml
+# python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/

@@ -1,0 +1,16 @@
+# Verified to install and run on Linux x86_64, Python 3.13.5 (2026-10-16).
+# All CPU-only, all permissive licences (MIT/BSD/Apache). No network calls at runtime:
+# RapidOCR's ONNX models ship inside the rapidocr-onnxruntime wheel.
+pypdfium2==5.14.0            # Apache-2.0 / BSD-3 (PDFium)  - page rendering
+pdfplumber==0.11.10          # MIT                         - digital text layer
+opencv-python==5.0.0.93      # Apache-2.0                  - preprocessing (rapidocr depends on it)
+rapidocr-onnxruntime==1.2.3  # Apache-2.0                  - OCR (PaddleOCR models via ONNX)
+onnxruntime==1.31.0          # MIT
+numpy==2.5.4
+pandas==3.0.6
+scikit-learn==1.9.1
+rapidfuzz==3.14.6            # MIT
+python-dateutil==2.9.0.post0
+Jinja2==3.1.6
+PyYAML==6.0.3
+pillow==12.3.0
