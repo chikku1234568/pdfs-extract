@@ -5,8 +5,15 @@ for v in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "OMP_THR
 sys.path.insert(0, os.path.dirname(__file__)); sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 import cv2
 from engines import ENGINES
-from kyctrial.config import DEFAULTS
-from kyctrial.preprocess import preprocess
+from utils import common
+
+
+def old_kit_prep(img):
+    """The original kit default: deskew + median denoise + adaptive threshold."""
+    common.BINARISE = False
+    img, _ = common.preprocess(img)
+    img = cv2.medianBlur(img, 3)
+    return cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 15)
 
 name, prep = sys.argv[1], sys.argv[2]
 levels = sys.argv[3].split(",") if len(sys.argv) > 3 else ["clean", "bw200", "noisy_skew", "faded_blur", "low_contrast"]
@@ -16,10 +23,10 @@ for lv in levels:
     for f in sorted(glob.glob(f"data/{lv}/*.png")):
         img = cv2.imread(f, cv2.IMREAD_GRAYSCALE)
         if prep == "prep":      # kit default: deskew + median denoise + adaptive threshold
-            img, _ = preprocess(img, DEFAULTS)
+            img = old_kit_prep(img)
         elif prep == "deskew":  # deskew only, keep grayscale
-            c = {**DEFAULTS, "preprocess": {**DEFAULTS["preprocess"], "denoise": False, "threshold": False}}
-            img, _ = preprocess(img, c)
+            common.BINARISE = False
+            img, _ = common.preprocess(img)
         t = time.time()
         try:
             words = run(img); err = None

@@ -1,23 +1,39 @@
-"""Show what OCR (or the text layer) read on one page, plus the classifier's view.
-Usage: python dump_page.py data\file.pdf 5"""
-import sys, cv2
-from kyctrial import config, render, preprocess, ocr, classify
-pdf, page = sys.argv[1], int(sys.argv[2]) - 1
-cfg = config.load_config(None)
-pg = render.load_page(pdf, page, cfg)
-if pg.get("words"):
-    words = pg["words"]
+"""What did OCR (or the text layer) read on ONE page, and what did the classifier make of it?
+
+    python dump_page.py data\file.pdf 5                  # page 5 (1-based), RapidOCR
+    python dump_page.py data\file.pdf 5 --engine paddle  # in the paddle venv
+
+Writes outputs/dump_<pdfname>_p<N>.json with: engine, source, words (text, bbox, conf),
+lines (grouped, top to bottom), and the classifier label / scores / features."""
+import argparse
+import os
+
+from utils import common
+
+ap = argparse.ArgumentParser()
+ap.add_argument("pdf")
+ap.add_argument("page", type=int, help="page number, 1-based")
+ap.add_argument("--engine", choices=["rapid", "paddle"], default="rapid")
+ap.add_argument("--out", default="outputs")
+a = ap.parse_args()
+
+if a.engine == "rapid":
+    from utils.ocr_rapid import ocr_page
 else:
-    clean, angle = preprocess.preprocess(pg["image"], cfg, None, tag="dump")
-    img = cv2.cvtColor(clean, cv2.COLOR_GRAY2BGR) if clean.ndim == 2 else clean
-    words, _ = ocr.ocr_cached(img, pdf, page, cfg, "outputs/_ocr_cache")
-print(f"source={pg['source']}  words={len(words)}\n")
-lines = {}
-for w in sorted(words, key=lambda w: (w["y0"], w["x0"])):
-    key = next((k for k in lines if abs(k - w["y0"]) < 10), w["y0"])
-    lines.setdefault(key, []).append(w)
-for y in sorted(lines):
-    print(f"{int(y):5d}  " + "  ".join(f"{w['text']}({w['conf']:.2f})" for w in sorted(lines[y], key=lambda w: w["x0"])))
-res, _ = classify.classify_page(words, cfg)
-print("\n", res["label"], "st=", res["statement_score"], "form=", res["form_score"])
-print({k: v for k, v in res["features"].items()})
+    from utils.ocr_paddle import ocr_page
+
+pg = common.get_page_words(a.pdf, a.page - 1, ocr_page, a.engine)
+cls, lines = common.classify_page(pg["words"])
+dump = {
+    "pdf": os.path.basename(a.pdf), "page": a.page, "engine": a.engine,
+    "source": pg["source"], "skew_deg": round(pg["angle"], 2), "from_cache": pg["cached"],
+    "classification": cls,
+    "lines": [{"y": round(min(w["y0"] for w in ln)), "text": common.line_text(ln),
+               "words": [f"{w['text']} ({w['conf']:.2f})" for w in ln]} for ln in lines],
+    "words": [{"text": w["text"], "bbox": [round(w["x0"]), round(w["y0"]), round(w["x1"]), round(w["y1"])],
+               "conf": w["conf"]} for w in pg["words"]],
+}
+name = os.path.splitext(os.path.basename(a.pdf))[0]
+path = os.path.join(a.out, f"dump_{name}_p{a.page}.json")
+common.save_json(dump, path)
+print(f"{cls['label']} st={cls['statement_score']} form={cls['form_score']} words={len(pg['words'])} -> saved {path}")

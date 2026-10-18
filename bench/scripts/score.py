@@ -3,9 +3,7 @@ import csv, glob, json, os, re, sys
 from collections import Counter, defaultdict
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 import jiwer
-from kyctrial.config import DEFAULTS
-from kyctrial.ocr import group_lines, line_text
-from kyctrial.statements import parse_page_table, reconcile
+from utils.common import group_lines, line_text, parse_page_table, balance_check
 
 GT = json.load(open("data/gt.json"))
 AMT = re.compile(r"^\d{1,3}(,\d{2,3})*\.\d{2}$")
@@ -38,11 +36,11 @@ def score_page(gt, words):
         kws = [k for k in KW if k in hdr]
         low = [t.lower() for t in toks]
         r["kw_recall"] = sum(any(k == t or k in t for t in low) for k in kws) / len(kws)
-        rows, cols, _, extra = parse_page_table(lines) if lines else ([], None, None, None)
-        rate, checked = reconcile(rows, extra["opening"] if extra else None, 1.0) if rows else (None, 0)
+        rows, cols, opening = parse_page_table(lines) if lines else ([], None, None)
+        rate, checked = balance_check(rows, opening, 1.0) if rows else (None, 0)
         n_gt = len(gt["rows"])
         r["rows_found"] = len(rows) / n_gt
-        r["reconcile_ok_of_gt"] = (sum(x.get("reconciles") == "ok" for x in rows) / max(n_gt - (gt["opening"] is None), 1))
+        r["reconcile_ok_of_gt"] = (sum(x.get("balance_ok") == "ok" for x in rows) / max(n_gt - (gt["opening"] is None), 1))
         r["layout"] = gt["layout"]
     else:
         vals = list(gt["fields"].values()); nt = norm(text)

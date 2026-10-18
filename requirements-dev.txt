@@ -1,5 +1,0 @@
--r requirements.txt
-# only needed to (re)generate synthetic fixtures and run tests
-reportlab==5.0.1             # BSD
-Faker==40.43.0               # MIT
-pytest==9.1.1

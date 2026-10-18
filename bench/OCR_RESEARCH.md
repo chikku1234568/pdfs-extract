@@ -4,7 +4,7 @@ Date: 2026-10-16. Target: Windows laptop, 16 GB RAM, no GPU, fully offline, open
 Documents: English, poor black-and-white scans of Indian bank statements (date/description/debit/credit/balance tables) and loan/KYC application forms.
 
 **Bottom line**
-- **Use RapidOCR 3.x with PP-OCRv5 mobile models (`ocr.engine: rapidocr_v5`) and deskew-only preprocessing.**
+- **Use RapidOCR 3.x with PP-OCRv5 mobile models (`utils/ocr_rapid.py`, run with `main_rapid.py`) and deskew-only preprocessing.**
 - It tied for best accuracy: 98.6–99.5% amount recall and 99.3% running-balance reconcile on the A/B statement layouts.
 - It also used the least RAM of the accurate engines (~0.7 GB) and took ~1.8 s per page on 4 CPU threads.
 - PaddleOCR 3.x (same models, native runtime) matched its accuracy but was 2.4× slower and used 3× the RAM.
@@ -55,7 +55,7 @@ Excluded after a speed probe: RapidOCR v5 server and v6 medium (ONNX on CPU, 87�
     - `faded_blur`: blur, faded toner, 150 dpi
     - `low_contrast`: grey text, uneven lighting, slight blur
   - Ground truth: the page text line by line, plus every table cell.
-- **Preprocessing variants** (kit's `preprocess.py`):
+- **Preprocessing variants** (kit's `preprocess()` in `utils/common.py`):
   - `raw`: no preprocessing
   - `prep`: old kit default, deskew + median filter + adaptive threshold
   - `deskew`: deskew only, grayscale kept
@@ -64,7 +64,7 @@ Excluded after a speed probe: RapidOCR v5 server and v6 medium (ONNX on CPU, 87�
   - **Amount recall**: exact-string multiset match of every ground-truth amount token; this is the critical one
   - Date recall
   - Keyword recall for withdrawal/deposit/debit/credit/balance/Dr/Cr in the header
-  - **Kit reconcile**: OCR words go through `kyctrial.ocr.group_lines` and then `statements.parse_page_table` + `reconcile`. The score is the fraction of ground-truth rows whose running balance checks out (≤ ₹1).
+  - **Kit reconcile**: OCR words go through `group_lines`, then `parse_page_table` + `balance_check` from `utils/common.py`. The score is the fraction of ground-truth rows whose running balance checks out (≤ ₹1).
   - Rows found, and form field exact-match
 - **Speed and memory**: seconds per page (OCR only), 4 threads (`OMP/MKL` and ONNX `intra_op=4`), 8-core Linux VM with 2 jobs in parallel, so absolute times are pessimistic. Peak RSS comes from `getrusage`.
 
@@ -121,7 +121,7 @@ All numbers are on synthetic pages. The full tables are in `results/`:
 
 ## 4. Recommendation
 
-1. **Default: RapidOCR 3.x, PP-OCRv5 mobile det + English rec, deskew-only preprocessing, 4 threads.** It is accurate, light (<1 GB), pure `pip` with Apache-2.0 code and weights, and needs no separate binary. This is now the kit default (`ocr.engine: rapidocr_v5`).
+1. **Default: RapidOCR 3.x, PP-OCRv5 mobile det + English rec, deskew-only preprocessing, 4 threads.** It is accurate, light (<1 GB), pure `pip` with Apache-2.0 code and weights, and needs no separate binary. This is now the kit default (`utils/ocr_rapid.py`, `main_rapid.py`).
 2. **Fallback / cross-check: PaddleOCR 3.x** if a document family beats RapidOCR. It is the same model family, and **PP-StructureV3** adds table structure for messy layouts. The cost is a heavier install and more RAM.
 3. **Speed option: RapidOCR PP-OCRv6 tiny** (0.6 s/page) for a quick first pass, such as page classification only. Run v5 on the statement pages after that.
 4. **Second opinion: OnnxTR.** It is a different model family, so its errors are uncorrelated. It is useful as a vote on rows that fail reconcile.
@@ -134,26 +134,26 @@ All numbers are on synthetic pages. The full tables are in `results/`:
 - Times were measured on Linux under 2-way contention. On a typical 4–8 core Windows laptop, expect similar or faster times.
 - I did not test on Windows itself.
   - All recommended packages ship Windows wheels.
-  - RapidOCR 3.x and OnnxTR **download models on first use**. Run `python -m kyctrial.ocr` once while online, or copy the model folder, before going offline.
+  - RapidOCR 3.x and OnnxTR **download models on first use**. Run `python utils/ocr_rapid.py` once while online, or copy the model folder, before going offline.
   - The legacy `rapidocr_onnxruntime` bundles its models in the wheel.
 - Amount recall uses exact string match. The kit's `normalise_amount_text` recovers some near-misses, so the kit's own accuracy can be higher.
 
 ## 6. Suggested real-data checks (on the client laptop, data never leaves it)
 
-1. Pick 5 PDFs (≈150 pages) covering the worst scans. Run `python -m kyctrial run` with `ocr.engine` set to `rapidocr_v5`, then `onnxtr`, then `tesseract`.
-2. Compare `reconcile_rate` per file in `summary.csv`. That is a label-free accuracy signal: a row that reconciles almost certainly has correct amounts.
+1. Pick 5 PDFs (≈150 pages) covering the worst scans, put them in `data/` and run `python main_rapid.py` (rapid venv) and `python main_paddle.py` (paddle venv). OnnxTR / Tesseract are bench-only: wrap them like `utils/ocr_rapid.py` (same `ocr_page(img)` output, see `bench/scripts/engines.py`) if you want them in the kit.
+2. Compare `balance_ok_rate` per file in `outputs/rapid/summary.csv` vs `outputs/paddle/summary.csv`. That is a label-free accuracy signal: a row that reconciles almost certainly has correct amounts.
 3. Hand-check 50 failed rows. Classify each failure as an OCR digit error, a column-assignment error or a row-merge error. This tells you whether to fix the engine or the parser.
-4. Try `preprocess.denoise: true` only if the scans are heavily speckled. Keep `threshold: false` unless the scans are very low-contrast and Tesseract is used.
-5. Fill in `manual_review.csv` for application ID / name / co-applicant on 20 files and run `kyctrial.evaluate`.
+4. Add a `cv2.medianBlur(gray, 3)` in `preprocess()` only if the scans are heavily speckled. Keep `BINARISE = False` (top of `utils/common.py`) unless the scans are very low-contrast and Tesseract is used.
+5. Fill in `outputs/manual_review.csv` for application ID / name / co-applicant on 20 files and run `common.evaluate("outputs/rapid/summary.csv")` (last cell of `main.ipynb`).
 6. If a bank uses a single Amount + Dr/Cr column, add that parser mode first; OCR is already good enough for it.
 
 ## 7. Reproduce
 
 ```
-pip install -r requirements.txt -r bench/requirements-bench.txt
+pip install -r requirements-rapid.txt -r bench/requirements-bench.txt
 cd bench
 python scripts/make_dataset.py data                    # 60 PNGs (git-ignored)
 python scripts/run_engine.py rapidocr_v5_mobile deskew  # writes results/raw/*.json
 python scripts/score.py                                 # writes results/*.csv
 ```
-Engine names are listed in `scripts/engines.py`.
+Run these from `bench/`. Engine names are listed in `scripts/engines.py`. The scripts import the kit's preprocessing and table parser from `utils/common.py`.

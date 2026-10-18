@@ -26,6 +26,6 @@
 
 ## Security & governance
 19. Approved machine(s) for processing; is the laptop offline / encrypted disk? Can we install Python packages there?
-20. Retention and deletion: when must `outputs/` (OCR text, thumbnails, caches) be deleted? Can extracted text be kept for training a classifier?
+20. Retention and deletion: when must `outputs/` (OCR text cache, JSON/CSV results, page dumps) be deleted? Can extracted text be kept for training a classifier?
 21. Can redacted or synthetic look-alike pages leave the premises for tuning? (Default assumption: **no**.)
 22. Any audit/logging requirement for who ran what on which file?

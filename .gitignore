@@ -1,5 +1,6 @@
 # ======== NEVER COMMIT CLIENT DATA ========
-data/
+data/*
+!data/.gitkeep
 outputs/
 input/
 inputs/
@@ -17,14 +18,13 @@ client*/
 *.tiff
 *.joblib
 _ocr_cache/
-# local config overrides may contain client label names
-local*.yaml
 # python
-.venv/
-venv/
+.venv*/
+venv*/
 __pycache__/
 *.pyc
 .pytest_cache/
+.ipynb_checkpoints/
 *.egg-info/
 
 # OCR benchmark: synthetic summary CSVs only (fake data); raw OCR dumps stay local
