@@ -41,7 +41,7 @@ Everything you would tune is a constant at the top of `utils/common.py`: `DPI`, 
 
 ## Setup on Windows (two venvs)
 
-Python 3.11–3.13, 64-bit, plus the Microsoft Visual C++ Redistributable (x64). In the VS Code
+Python 64-bit (RapidOCR works on 3.11–3.14; PaddleOCR needs 3.9–3.13, as paddlepaddle has no 3.14 wheel yet, so build its venv with `py -3.12`), plus the Microsoft Visual C++ Redistributable (x64). In the VS Code
 terminal (PowerShell), in the repo folder:
 
 ```powershell
@@ -53,7 +53,7 @@ python utils\ocr_rapid.py               # one-time model download (needs interne
 deactivate
 
 # PaddleOCR venv
-python -m venv .venv-paddle
+py -3.12 -m venv .venv-paddle
 .venv-paddle\Scripts\Activate.ps1
 pip install -r requirements-paddle.txt
 python utils\ocr_paddle.py              # one-time model download

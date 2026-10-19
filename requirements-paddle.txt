@@ -1,7 +1,7 @@
 # PaddleOCR venv (separate from the RapidOCR one). Verified: paddlepaddle 3.0.0 + paddleocr 3.7.0
-# on Python 3.13.5, Linux x86_64 (2026-10-18). Windows: 64-bit Python 3.8-3.13, AVX CPU,
+# on Python 3.13.5, Linux x86_64 (2026-10-18). Windows: 64-bit Python 3.9-3.13 ONLY (no paddlepaddle wheel for 3.14 yet; use py -3.12), AVX CPU,
 # Microsoft Visual C++ Redistributable (x64).
-#   python -m venv .venv-paddle ; .venv-paddle\Scripts\Activate.ps1 ; pip install -r requirements-paddle.txt
+#   py -3.12 -m venv .venv-paddle ; .venv-paddle\Scripts\Activate.ps1 ; pip install -r requirements-paddle.txt
 # The paddlepaddle CPU wheel comes from Paddle's index:
 --extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cpu/
 paddlepaddle==3.0.0
