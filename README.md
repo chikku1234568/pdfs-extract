@@ -1,16 +1,5 @@
 # pdfs-extract: KYC + bank-statement PDF trial
 
-> **⚠️ Never commit client files.** Client PDFs go in `data/`, results in `outputs/`. Both are
-> git-ignored and stay **on the client laptop only**. `outputs/` (OCR cache, JSON, CSV, page dumps)
-> contains client text: delete it after the trial. Clear the notebook outputs before every commit.
-> Run `git status` before each push. Only the synthetic PDFs in `tests/fixtures/` belong in git.
-
-Fully offline, CPU only, open source. No LLMs, no external APIs, no network calls at runtime.
-For each PDF it answers:
-1. Does it contain bank statements, on which pages, and how many months?
-2. Application id, applicant name, co-applicant name + id, and the statement rows
-   (date, description, debit, credit, balance) with a running-balance check.
-
 ## Layout
 
 ```
