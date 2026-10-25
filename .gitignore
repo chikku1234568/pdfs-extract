@@ -31,3 +31,6 @@ __pycache__/
 !bench/results/*.csv
 bench/results/raw/
 bench/results/logs/
+
+# local model weights (download via modelscope)
+models/

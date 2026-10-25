@@ -1,0 +1,26 @@
+# Single venv for main.ipynb. Python 3.12 REQUIRED (paddlepaddle has no 3.14 wheel).
+# Windows (PowerShell or cmd), inside the activated .venv-paddle:
+#   py -3.12 -m venv .venv-paddle
+#   .venv-paddle\Scripts\Activate.ps1        (cmd: .venv-paddle\Scripts\activate.bat)
+#   python -m pip install paddlepaddle==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
+#   python -m pip install -r requirements-notebook.txt
+# DLL load errors -> install Microsoft Visual C++ Redistributable x64.
+# Corporate proxy SSL errors -> python -m pip install pip-system-certs (see README).
+paddleocr[doc-parser]
+rapidocr
+onnxruntime
+pypdfium2
+opencv-python-headless
+numpy
+pandas
+openpyxl
+lxml
+rapidfuzz
+matplotlib
+ipykernel
+# pip-system-certs        # optional: corporate SSL proxy
+# optional BERT fallback (keywords stay primary; see docs\BERT_WITHOUT_HF.md):
+#   python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+# torch
+# transformers
+# modelscope
