@@ -1,0 +1,18 @@
+# Single venv for main.ipynb (Python 3.12). First install paddlepaddle:
+#   pip install paddlepaddle==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
+paddleocr[doc-parser]
+rapidocr
+onnxruntime
+pypdfium2
+opencv-python-headless
+numpy
+pandas
+openpyxl
+lxml
+rapidfuzz
+matplotlib
+ipykernel
+# optional BERT step (see docs/BERT_WITHOUT_HF.md); torch CPU: --index-url https://download.pytorch.org/whl/cpu
+# torch
+# transformers
+# modelscope

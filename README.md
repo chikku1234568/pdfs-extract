@@ -1,3 +1,26 @@
+# pdfs-extract — notebook-first trial (branch `dev`)
+
+**Main path:** `main.ipynb` + `utils.py` (functions only). The older scripts are in `legacy/`.
+Pipeline: ingest (pypdfium2) → grayscale/deskew (OpenCV) → OCR (RapidOCR) → page class (`applicant` / `statement` / `not_needed`, keywords plus optional BERT) → applicant fields (Customer ID, opening/closing balance, account, name, period) → tables (**PP-StructureV3**) → normalised transactions → months → lead flags → `outputs/<lead>/transactions.xlsx` and `leads.xlsx`.
+
+## Run on Windows
+```bat
+py -3.12 -m venv .venv-paddle
+.venv-paddle\Scripts\activate
+python -m pip install paddlepaddle==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
+python -m pip install -r requirements-notebook.txt
+python -m ipykernel install --user --name kyc-paddle
+REM optional BERT: pip install torch --index-url https://download.pytorch.org/whl/cpu & pip install transformers modelscope
+REM           modelscope download --model AI-ModelScope/distilbert-base-uncased --include "*.safetensors" "*.json" "vocab.txt" --local_dir models/distilbert-base-uncased
+jupyter notebook main.ipynb   (choose kernel "kyc-paddle")
+```
+- Put PDFs in `data/` and set `PDF = ...` in cell 0. `data/`, `outputs/` and `models/` are gitignored.
+- Your existing **RapidOCR venv** (`.venv-rapid`) runs cells 0–8 (OCR, classification, applicant fields). Cells 9–13 (PP-StructureV3) need the 3.12 Paddle venv above, which also has RapidOCR. The simplest setup is to run everything in `.venv-paddle`.
+- PP-StructureV3 downloads its models once, from Baidu BOS (not Hugging Face), to `%USERPROFILE%\.paddlex\official_models`. On CPU it takes about 25–90 s per page and peaks at about 7 GB RAM with `enable_mkldnn=False`. MKL-DNN on caused an out-of-memory crash at about 12 GB. Cell 9 caches each page's result as JSON, so a re-run skips pages already done.
+- Results on the box with the dummy PDF: all 6 pages classified `statement`; Customer ID 460800283, opening balance 1,989,440.85, closing balance 3,789,730.40; 129 of 157 transactions recovered; 3 months → **Partial**.
+
+---
+
 # pdfs-extract: KYC + bank-statement PDF trial
 
 > **⚠️ Never commit client files.** Client PDFs go in `data/`, results in `outputs/`. Both are
