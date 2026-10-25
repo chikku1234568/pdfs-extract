@@ -6,7 +6,13 @@
 | PaddleNLP weights on Baidu BOS | `https://bj.bcebos.com/paddlenlp/models/transformers/bert-base-uncased.pdparams` | URL reachable. Needs the PaddleNLP stack. Not wired in. |
 | Google original BERT zips (`storage.googleapis.com/bert_models/...`) | TF checkpoints | **403 Forbidden.** Not usable. |
 
-Install on Windows (in the venv used for the notebook): `pip install torch --index-url https://download.pytorch.org/whl/cpu`, then `pip install transformers modelscope`.
+Install on Windows (PowerShell, repo folder; BERT is an optional fallback — keywords stay primary):
+```powershell
+.venv-paddle\Scripts\Activate.ps1
+python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+python -m pip install transformers modelscope
+modelscope download --model AI-ModelScope/distilbert-base-uncased --include "*.safetensors" "*.json" "vocab.txt" --local_dir models\distilbert-base-uncased
+```
 
 **Caveats**
 - The client network must allow `modelscope.cn`. Ask IT, just as you would for Hugging Face.

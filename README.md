@@ -1,27 +1,74 @@
 # pdfs-extract — notebook-first trial (branch `dev`)
 
-**Main path:** `main.ipynb` + `utils.py` (functions only). The older scripts are in `legacy/`.
-Pipeline: ingest (pypdfium2) → grayscale/deskew (OpenCV) → OCR (RapidOCR) → page class (`applicant` / `statement` / `not_needed`, keywords plus optional BERT) → applicant fields (Customer ID, opening/closing balance, account, name, period) → tables (**PP-StructureV3**) → normalised transactions → months → lead flags → `outputs/<lead>/transactions.xlsx` and `leads.xlsx`.
+**Main path:** `main.ipynb` + `utils.py` (functions only). Older scripts are in `legacy/`.
+Pipeline: ingest (pypdfium2) → grayscale/deskew (OpenCV) → OCR (RapidOCR) → page class (`applicant` / `statement` / `not_needed`) → applicant fields (Customer ID, opening/closing balance, account, name, period) → tables (**PP-StructureV3**) → normalised transactions → months → lead flags → `outputs\<lead>\transactions.xlsx` and `leads.xlsx`.
 
-## Run on Windows
-```bat
+**Page classification:** keyword scoring is the **primary** classifier and stays as-is. BERT (DistilBERT from **ModelScope, not Hugging Face**) is an **optional fallback only**, used when keywords return `not_needed`. You can skip installing it.
+
+## Run on Windows (primary guide)
+
+> Developed and smoke-tested on **Linux**; the **target runtime is Windows**. Differences that matter: use the `py` launcher (not `python3`), activate with `.venv-paddle\Scripts\Activate.ps1` (not `source .../bin/activate`), and use backslash paths (`data\file.pdf`). Paths inside the notebook are built with `pathlib`, so they work on both.
+
+**Prerequisites**
+- Python **3.12** 64-bit (python.org installer, tick "py launcher"). PaddlePaddle has no wheels for 3.14; 3.12 is the tested version.
+- **Microsoft Visual C++ Redistributable (x64)** — install it if `import paddle`, `onnxruntime` or `cv2` fails with a DLL load error: https://aka.ms/vs/17/release/vc_redist.x64.exe
+- VS Code (Python + Jupyter extensions) or Jupyter.
+
+**Setup (PowerShell, in the repo folder)** — one venv, `.venv-paddle`, for the whole notebook:
+```powershell
 py -3.12 -m venv .venv-paddle
-.venv-paddle\Scripts\activate
+.venv-paddle\Scripts\Activate.ps1
+# If blocked ("running scripts is disabled"):
+#   Set-ExecutionPolicy -Scope CurrentUser RemoteSigned    (then re-run Activate.ps1)
+python -m pip install --upgrade pip
 python -m pip install paddlepaddle==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
 python -m pip install -r requirements-notebook.txt
-python -m ipykernel install --user --name kyc-paddle
-REM optional BERT: pip install torch --index-url https://download.pytorch.org/whl/cpu & pip install transformers modelscope
-REM           modelscope download --model AI-ModelScope/distilbert-base-uncased --include "*.safetensors" "*.json" "vocab.txt" --local_dir models/distilbert-base-uncased
-jupyter notebook main.ipynb   (choose kernel "kyc-paddle")
+python -m ipykernel install --user --name kyc-paddle --display-name "kyc-paddle (Py3.12)"
 ```
-- Put PDFs in `data/` and set `PDF = ...` in cell 0. `data/`, `outputs/` and `models/` are gitignored.
-- Your existing **RapidOCR venv** (`.venv-rapid`) runs cells 0–8 (OCR, classification, applicant fields). Cells 9–13 (PP-StructureV3) need the 3.12 Paddle venv above, which also has RapidOCR. The simplest setup is to run everything in `.venv-paddle`.
-- PP-StructureV3 downloads its models once, from Baidu BOS (not Hugging Face), to `%USERPROFILE%\.paddlex\official_models`. On CPU it takes about 25–90 s per page and peaks at about 7 GB RAM with `enable_mkldnn=False`. MKL-DNN on caused an out-of-memory crash at about 12 GB. Cell 9 caches each page's result as JSON, so a re-run skips pages already done.
-- Results on the box with the dummy PDF: all 6 pages classified `statement`; Customer ID 460800283, opening balance 1,989,440.85, closing balance 3,789,730.40; 129 of 157 transactions recovered; 3 months → **Partial**.
+(cmd.exe instead of PowerShell: `.venv-paddle\Scripts\activate.bat`.)
+
+**Optional BERT fallback** (skip unless you want to compare):
+```powershell
+python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+python -m pip install transformers modelscope
+modelscope download --model AI-ModelScope/distilbert-base-uncased --include "*.safetensors" "*.json" "vocab.txt" --local_dir models\distilbert-base-uncased
+```
+
+**SSL errors on a corporate proxy** (`CERTIFICATE_VERIFY_FAILED` from pip or model downloads):
+```powershell
+python -m pip install pip-system-certs
+# if pip itself can't connect:
+python -m pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pip-system-certs
+```
+Then retry. For the Paddle index also add `--trusted-host www.paddlepaddle.org.cn` if needed.
+
+**Open and run**
+- VS Code: open `main.ipynb` → *Select Kernel* → `kyc-paddle (Py3.12)` (or the `.venv-paddle` interpreter).
+- Or: `jupyter notebook main.ipynb` from the activated venv and pick kernel `kyc-paddle`.
+- Put PDFs in `data\` and set `PDF = ...` in the first code cell. `data\`, `outputs\`, `models\` are gitignored.
+- Run top to bottom. Cell 9 caches PP-StructureV3 results per page as JSON, so re-runs skip finished pages.
+
+**Where models land on Windows** (copy these to an offline machine at the same location):
+- RapidOCR: inside site-packages, `.venv-paddle\Lib\site-packages\rapidocr\models\`. Exact path:
+  `python -c "import rapidocr, os; print(os.path.join(os.path.dirname(rapidocr.__file__), 'models'))"`
+- PP-StructureV3: `%USERPROFILE%\.paddlex\official_models\` (downloaded once from Baidu BOS, not Hugging Face). Set env var `PADDLE_PDX_CACHE_HOME` to move it.
+- Optional DistilBERT: `models\distilbert-base-uncased\` in the repo.
+
+**RAM / speed**
+- PP-StructureV3 on CPU: ~25–90 s per page, **~7 GB peak RAM**. Close browsers/other heavy apps on a 16 GB laptop.
+- `enable_mkldnn=False` is already set in the code — leave it; MKL-DNN on caused an out-of-memory crash (~12 GB).
+
+**Two venvs?** Not needed. An older `.venv-rapid` can run the OCR/classification/applicant cells, but the table cells need Paddle, so use `.venv-paddle` for everything.
+
+**Dummy PDF result (Linux box):** all 6 pages `statement`; Customer ID 460800283, opening 1,989,440.85, closing 3,789,730.40; 129 of 157 transactions; 3 months → **Partial**.
 
 ---
 
-# pdfs-extract: KYC + bank-statement PDF trial
+# LEGACY (old script pipeline, `legacy/`)
+
+> **Legacy.** Everything below describes the old script layout (`utils/common.py`, `utils/ocr_rapid.py`, `main_rapid.py`, ...), now moved to `legacy/`. Paths below are **not** valid for `main.ipynb`. Use the Windows guide at the top.
+
+## (legacy) pdfs-extract: KYC + bank-statement PDF trial
 
 > **⚠️ Never commit client files.** Client PDFs go in `data/`, results in `outputs/`. Both are
 > git-ignored and stay **on the client laptop only**. `outputs/` (OCR cache, JSON, CSV, page dumps)
