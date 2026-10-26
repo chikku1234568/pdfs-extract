@@ -64,9 +64,12 @@ You can copy the whole `py312` folder to a USB stick or to another path. It keep
 
 Open PowerShell in the folder that contains `main.ipynb` (the clone of branch `notebook`).
 
+The laptop firewall intercepts HTTPS, so install `pip-system-certs` before anything else. That makes pip use the Windows certificate store. RapidOCR and the other packages fail with `CERTIFICATE_VERIFY_FAILED` without it. `--trusted-host` is only for this first package, because the certificate hook does not exist yet.
+
 ```powershell
 & "$env:USERPROFILE\py312\python\python.exe" -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pip-system-certs
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m ipykernel install --user --name kyc-notebook --display-name "kyc-notebook (py312)"
 ```
@@ -94,9 +97,12 @@ Run all cells from the top. The rest of this file (weights, outputs, runtime) is
 
 Skip the portable download. In the folder that contains `main.ipynb`:
 
+Same firewall step as above: `pip-system-certs` first, then the requirements.
+
 ```powershell
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pip-system-certs
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m ipykernel install --user --name kyc-notebook --display-name "kyc-notebook"
 ```
@@ -111,13 +117,6 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
 In cmd.exe the activate script is `.venv\Scripts\activate.bat`. Activation is optional. The `.\.venv\Scripts\python.exe -m ...` commands above are enough.
-
-If pip fails with `CERTIFICATE_VERIFY_FAILED`, run this with the same venv Python and then install the requirements again:
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pip-system-certs
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
 
 ## Weights (not Hugging Face)
 

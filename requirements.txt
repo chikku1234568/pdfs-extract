@@ -1,6 +1,8 @@
 # Python 3.11 or 3.12, 64-bit. Tested on Windows with Python 3.11.9.
 # paddlepaddle 3.2.0 has a Windows wheel on PyPI for 3.11 and 3.12.
 # Do not add torch, transformers, or a Hugging Face client.
+# Behind the firewall, install pip-system-certs BEFORE this file. See README.
+#   python -m pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pip-system-certs
 paddlepaddle==3.2.0
 paddleocr[doc-parser]==3.7.0
 rapidocr==3.10.0
