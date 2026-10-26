@@ -1,36 +1,17 @@
-# ======== NEVER COMMIT CLIENT DATA ========
+# Client PDFs and run output stay on the machine. Do not commit them.
 data/*
 !data/.gitkeep
 outputs/
-input/
-inputs/
-client*/
 *.pdf
-!tests/fixtures/*.pdf
-*.csv
-!tests/fixtures/*.csv
 *.xlsx
 *.xls
-*.png
-*.jpg
-*.jpeg
-*.tif
-*.tiff
-*.joblib
-_ocr_cache/
-# python
+*.csv
+
+# Local environments and model caches
 .venv*/
 venv*/
+models/
 __pycache__/
 *.pyc
-.pytest_cache/
 .ipynb_checkpoints/
 *.egg-info/
-
-# OCR benchmark: synthetic summary CSVs only (fake data); raw OCR dumps stay local
-!bench/results/*.csv
-bench/results/raw/
-bench/results/logs/
-
-# local model weights (download via modelscope)
-models/

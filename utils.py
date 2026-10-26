@@ -1,5 +1,5 @@
 """Helper functions for main.ipynb. Plain functions only, no classes.
-RapidOCR helpers run in .venv-rapid; ppstructure_* helpers run in .venv-paddle (Python 3.12)."""
+One venv, Python 3.11 or 3.12. See README.md."""
 import json, re
 from pathlib import Path
 import numpy as np
@@ -151,6 +151,11 @@ _PPS = None
 def ppstructure_pipeline(**kw):
     global _PPS
     if _PPS is None:
+        import os
+        # PaddleX defaults to Hugging Face. Force Baidu BOS and block the hub.
+        os.environ["PADDLE_PDX_MODEL_SOURCE"] = "bos"
+        os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
+        os.environ["HF_HUB_OFFLINE"] = "1"
         from paddleocr import PPStructureV3
         cfg = dict(use_doc_orientation_classify=False, use_doc_unwarping=False,
                    use_textline_orientation=False, use_formula_recognition=False,
