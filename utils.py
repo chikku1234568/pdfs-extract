@@ -245,3 +245,115 @@ def write_outputs(lead_row, transactions, out_dir):
     transactions.to_excel(out / "transactions.xlsx", index=False)
     pd.DataFrame([lead_row]).to_excel(out / "leads.xlsx", index=False)
     return out / "transactions.xlsx", out / "leads.xlsx"
+
+# ================= Stage 1-2-3 recall-first page classification =================
+# Labels: applicant | statement | not_needed. Policy: KEEP on any positive signal;
+# not_needed only when every stage agrees. Text always from RapidOCR (page_text).
+FIN_HEADERS = ["date", "value date", "txn date", "narration", "description", "particulars", "debit",
+               "credit", "withdrawal", "deposit", "balance", "closing balance", "opening balance",
+               "cheque", "chq no", "ref no", "dr", "cr", "amount", "transaction", "statement of account"]
+APPLICANT_CUES = ["application", "applicant", "loan", "pan", "aadhaar", "date of birth", "dob",
+                  "father", "address", "mobile", "email", "occupation", "kyc", "customer id",
+                  "signature", "photograph", "nominee", "annual income", "employer"]
+APP_ID_RE = re.compile(r"\b(app(lication)?\s*(id|no|number)|lead\s*id)\s*[:#.\-]?\s*[A-Z0-9\-/]{5,}", re.I)
+PAN_RE = re.compile(r"\b[A-Z]{5}\d{4}[A-Z]\b")
+AADHAAR_RE = re.compile(r"\b(?:[Xx*]{4}[\s-]?){2}\d{4}\b|\b\d{4}\s\d{4}\s\d{4}\b")
+
+CLASS_DESC = {
+    "statement": "a bank account statement page listing transactions with dates, amounts and balances",
+    "applicant": "a loan application or KYC form with applicant personal details, ID numbers and address",
+    "not_needed": "a terms and conditions, cover, blank, advertisement or other irrelevant page",
+}
+
+def stage1_rules(text, keywords=None, fuzz_cutoff=88):
+    """Cheap rules. Returns (label|None, signals). None = no positive -> go to stage 2."""
+    from rapidfuzz import fuzz
+    lines = [l.lower() for l in text.splitlines() if l.strip()]
+    t = "\n".join(lines)
+    rows = sum(1 for l in lines if DATE_RE.search(l) and AMT_RE.search(l))
+    hdr = sum(1 for h in FIN_HEADERS if any(fuzz.partial_ratio(h, l) >= fuzz_cutoff for l in lines[:80])) if lines else 0
+    app_hits = sum(1 for c in APPLICANT_CUES if c in t)
+    ids = bool(APP_ID_RE.search(text)) + bool(PAN_RE.search(text)) + bool(AADHAAR_RE.search(text))
+    kw = keyword_classify(text, keywords)[0] if keywords else "not_needed"
+    s = {"txn_rows": rows, "fin_headers": hdr, "app_cues": app_hits, "id_hits": ids, "kw": kw}
+    stmt = rows >= 3 or hdr >= 4 or kw == "statement"
+    app = ids >= 1 or app_hits >= 3 or kw == "applicant"
+    if stmt and app:   # both -> keep, pick the stronger
+        return ("statement" if rows >= 3 else "applicant"), s
+    if stmt: return "statement", s
+    if app: return "applicant", s
+    return None, s
+
+_CACHE = {}
+def _layout(name):
+    if name not in _CACHE:
+        from paddleocr import LayoutDetection
+        _CACHE[name] = LayoutDetection(model_name=name)
+    return _CACHE[name]
+
+def layout_signals(img_rgb, model="PP-DocLayout-S", min_score=0.4):
+    bgr = np.ascontiguousarray(img_rgb[:, :, ::-1])
+    r = list(_layout(model).predict(bgr))[0].json["res"]
+    labs = [b["label"] for b in r["boxes"] if b["score"] >= min_score]
+    return {k: labs.count(k) for k in set(labs)}
+
+def _zs(model):
+    if model not in _CACHE:
+        from transformers import pipeline
+        _CACHE[model] = pipeline("zero-shot-classification", model=model, device=-1)
+    return _CACHE[model]
+
+def zeroshot_scores(text, model="MoritzLaurer/deberta-v3-xsmall-zeroshot-v1.1-all-33", max_chars=1500):
+    r = _zs(model)(text[:max_chars] or "empty page", list(CLASS_DESC.values()), multi_label=True,
+                    hypothesis_template="This is {}.")
+    inv = {v: k for k, v in CLASS_DESC.items()}
+    return {inv[l]: round(float(s), 3) for l, s in zip(r["labels"], r["scores"])}
+
+def rvl_scores(img_rgb, model="jordyvl/vit-tiny_rvl_cdip", proc="WinKawaks/vit-tiny-patch16-224"):
+    """ViT-Tiny RVL-CDIP (16 doc types). Returns top label dict."""
+    if model not in _CACHE:
+        import torch
+        from transformers import AutoImageProcessor, AutoModelForImageClassification
+        _CACHE[model] = (AutoImageProcessor.from_pretrained(proc), AutoModelForImageClassification.from_pretrained(model).eval())
+    import torch
+    from PIL import Image
+    p, m = _CACHE[model]
+    with torch.no_grad():
+        pr = m(**p(Image.fromarray(img_rgb).convert("RGB"), return_tensors="pt")).logits.softmax(-1)[0]
+    top = pr.topk(3)
+    return {m.config.id2label[int(i)]: round(float(v), 3) for v, i in zip(top.values, top.indices)}
+
+RVL_KEEP = {"form", "invoice", "budget", "questionnaire", "specification", "resume", "memo", "letter"}
+
+def classify_page(text, img_rgb, keywords=None, zs_keep=0.30, s3_keep=0.20):
+    """Recall-first cascade. Returns (label, stage, info)."""
+    lab, s1 = stage1_rules(text, keywords)
+    info = {"s1": s1}
+    if lab: return lab, "S1_rules", info
+    # Stage 2: PP-DocLayout-S + DeBERTa-xsmall; OR-keep
+    lay = layout_signals(img_rgb, "PP-DocLayout-S"); zs = zeroshot_scores(text)
+    info.update(s2_layout=lay, s2_zs=zs)
+    if lay.get("table", 0) >= 1 or zs["statement"] >= zs_keep:
+        return "statement", "S2_layout/zs", info
+    if zs["applicant"] >= zs_keep or (lay.get("seal", 0) and s1["app_cues"] >= 1):
+        return "applicant", "S2_layout/zs", info
+    # Stage 3: only to CONFIRM not_needed; any doubt keeps
+    lay3 = layout_signals(img_rgb, "PP-DocLayout-M")
+    zs3 = zeroshot_scores(text, "MoritzLaurer/deberta-v3-base-zeroshot-v2.0-c")
+    try: rvl = rvl_scores(img_rgb)
+    except Exception as e: rvl = {"error": str(e)[:80]}
+    info.update(s3_layout=lay3, s3_zs=zs3, s3_rvl=rvl)
+    if lay3.get("table", 0) >= 1 or zs3["statement"] >= s3_keep:
+        return "statement", "S3_doubt_keep", info
+    rvl_top = next(iter(rvl), "")
+    if zs3["applicant"] >= s3_keep or rvl_top in RVL_KEEP or "error" in rvl:
+        return "applicant", "S3_doubt_keep", info
+    return "not_needed", "S3_confirmed_drop", info
+
+def smooth_promote(labels):
+    """Promote-only: a not_needed page sandwiched between kept pages takes the previous kept label."""
+    out = list(labels)
+    for i in range(1, len(out) - 1):
+        if out[i] == "not_needed" and labels[i-1] != "not_needed" and labels[i+1] != "not_needed":
+            out[i] = labels[i-1]
+    return out
