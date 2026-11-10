@@ -6,6 +6,8 @@ Put a PDF in `data\`. The notebook renders pages, reads text with RapidOCR, labe
 
 This package does not call Hugging Face and does not run a language model. Keyword labels are the classifier. Step 5 of the notebook skips itself.
 
+If you only need RapidOCR text extraction, follow **Install RapidOCR and run the OCR step** below and stop after section 3 of the notebook.
+
 ## Files
 
 ```
@@ -15,6 +17,89 @@ requirements.txt    pip packages
 data\               put PDFs here (the PDFs are not in git)
 outputs\            results, created when you run (not in git)
 ```
+
+
+## Install RapidOCR and run the OCR step
+
+Use this if you only need to read text from a statement PDF. You do not need PaddleOCR or PP-StructureV3 for this path. Stop after section 3 of `main.ipynb`. The output is one JSON file of OCR boxes per page.
+
+If you already have the project `.venv` from the full install later in this file, skip to step 4.
+
+### 1. Clone the `notebook` branch
+
+You need access to the private repo `chikku1234568/pdfs-extract`. In PowerShell:
+
+```powershell
+git clone -b notebook https://github.com/chikku1234568/pdfs-extract.git
+cd pdfs-extract
+```
+
+Stay on `notebook`. Do not switch to `main`.
+
+### 2. Python
+
+Use 64-bit Python 3.11 or 3.12. On the client laptop with no admin rights, install the portable Python 3.12 folder in the [Python](#python) section below, then come back here. Do not use Python 3.14, and do not use the Windows embeddable zip from python.org.
+
+The program to call is either `%USERPROFILE%\py312\python\python.exe` or `py -3.11`, depending on which you have.
+
+### 3. Create a venv and install RapidOCR
+
+Open PowerShell in the folder that contains `main.ipynb`.
+
+The laptop firewall intercepts HTTPS, so install `pip-system-certs` first. RapidOCR fails with `CERTIFICATE_VERIFY_FAILED` without it. `--trusted-host` is only for this first package, because the certificate hook does not exist yet.
+
+```powershell
+# If you use the portable 3.12 folder:
+& "$env:USERPROFILE\py312\python\python.exe" -m venv .venv
+
+# Or, if you already have Python 3.11:
+# py -3.11 -m venv .venv
+
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pip-system-certs
+.\.venv\Scripts\python.exe -m pip install rapidocr==3.10.0 onnxruntime==1.31.0 pypdfium2==5.14.0 numpy==2.3.5 pandas==3.1.0 matplotlib==3.11.2 ipykernel==7.4.0
+.\.venv\Scripts\python.exe -m ipykernel install --user --name kyc-notebook --display-name "kyc-notebook (py312)"
+```
+
+These commands call `python.exe` by path. You do not need `Activate.ps1`.
+
+RapidOCR weights ship inside the pip package (`rapidocr\models\`). There is no extra model download and no Hugging Face login.
+
+Check the install:
+
+```powershell
+.\.venv\Scripts\python.exe -c "import sys, rapidocr, pypdfium2, cv2; print(sys.version); print('rapidocr', rapidocr.__version__)"
+```
+
+You want a `3.11` or `3.12` version line, and a RapidOCR version. If `import cv2` fails, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install opencv-python-headless==4.10.0.84
+```
+
+### 4. Put a PDF in `data\`
+
+Copy the statement PDF into `data\` in the project folder. Client PDFs stay on the machine; they are not in git.
+
+### 5. Run the OCR step in the notebook
+
+1. Open `main.ipynb` in VS Code or Jupyter.
+2. Select the kernel `kyc-notebook (py312)`, or `.venv\Scripts\python.exe`.
+3. Run the cells from the top through **section 3. OCR (RapidOCR)**. That is: setup and paths, ingest (render pages), preprocess (grayscale and deskew), then the two OCR cells.
+4. Do **not** use Run All, and do **not** continue into section 9 (PP-StructureV3 tables). That step needs the full `requirements.txt` install (PaddlePaddle).
+
+If `data\` has one PDF, the first cell uses it. If it has several, the cell prints the list and uses the first. Set `PDF = Path("data/your_file.pdf")` to pick another.
+
+### 6. Check that it worked
+
+After section 3 finishes you should see:
+
+- A timing line, for example `25.0s for 6 pages` (time depends on page count and CPU).
+- The first page of text printed in the notebook.
+- Files `outputs\<pdf-name>\ocr_p1.json`, `ocr_p2.json`, and so on, one per page. Each file is a list of `{text, score, box}` words.
+
+On a 6-page statement, OCR took about 25 seconds on a Windows CPU in an earlier run.
+
 
 ## Python
 
